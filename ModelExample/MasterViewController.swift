@@ -13,7 +13,7 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
 
     var detailViewController: DetailViewController? = nil
     var managedObjectContext: NSManagedObjectContext? = nil
-
+    var models: [YourModel]?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -26,6 +26,8 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
             let controllers = split.viewControllers
             self.detailViewController = (controllers[controllers.count-1] as! UINavigationController).topViewController as? DetailViewController
         }
+        
+        refreshData()
     }
 
     override func viewWillAppear(animated: Bool) {
@@ -37,25 +39,22 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
     }
+    
+    func refreshData() {
+        self.models = YourModel.getAll() as? [YourModel]
+        self.tableView.reloadData()
+    }
 
     func insertNewObject(sender: AnyObject) {
-        let context = self.fetchedResultsController.managedObjectContext
-        let entity = self.fetchedResultsController.fetchRequest.entity!
-        let newManagedObject = NSEntityDescription.insertNewObjectForEntityForName(entity.name!, inManagedObjectContext: context)
-             
-        // If appropriate, configure the new managed object.
-        // Normally you should use accessor methods, but using KVC here avoids the need to add a custom class to the template.
-        newManagedObject.setValue(NSDate(), forKey: "timeStamp")
-             
-        // Save the context.
-        do {
-            try context.save()
-        } catch {
-            // Replace this implementation with code to handle the error appropriately.
-            // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-            //print("Unresolved error \(error), \(error.userInfo)")
-            abort()
-        }
+        let newModel = YourModel()
+        
+        newModel.id   = 1
+        newModel.name = "Example Property"
+        newModel.date = NSDate()
+        
+        newModel.save()
+        
+        refreshData()
     }
 
     // MARK: - Segues
@@ -63,7 +62,7 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
     override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
         if segue.identifier == "showDetail" {
             if let indexPath = self.tableView.indexPathForSelectedRow {
-            let object = self.fetchedResultsController.objectAtIndexPath(indexPath)
+            let object = self.models![indexPath.row]
                 let controller = (segue.destinationViewController as! UINavigationController).topViewController as! DetailViewController
                 controller.detailItem = object
                 controller.navigationItem.leftBarButtonItem = self.splitViewController?.displayModeButtonItem()
@@ -75,12 +74,11 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
     // MARK: - Table View
 
     override func numberOfSectionsInTableView(tableView: UITableView) -> Int {
-        return self.fetchedResultsController.sections?.count ?? 0
+        return 1
     }
 
     override func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        let sectionInfo = self.fetchedResultsController.sections![section]
-        return sectionInfo.numberOfObjects
+        return models?.count ?? 0
     }
 
     override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
@@ -96,63 +94,16 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
 
     override func tableView(tableView: UITableView, commitEditingStyle editingStyle: UITableViewCellEditingStyle, forRowAtIndexPath indexPath: NSIndexPath) {
         if editingStyle == .Delete {
-            let context = self.fetchedResultsController.managedObjectContext
-            context.deleteObject(self.fetchedResultsController.objectAtIndexPath(indexPath) as! NSManagedObject)
-                
-            do {
-                try context.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                //print("Unresolved error \(error), \(error.userInfo)")
-                abort()
-            }
+            let yourModel = self.models![indexPath.row]
+            yourModel.delete()
+            refreshData()
         }
     }
 
     func configureCell(cell: UITableViewCell, atIndexPath indexPath: NSIndexPath) {
-        let object = self.fetchedResultsController.objectAtIndexPath(indexPath)
-        cell.textLabel!.text = object.valueForKey("timeStamp")!.description
+        let yourModel = self.models![indexPath.row]
+        cell.textLabel!.text = yourModel.name
     }
-
-    // MARK: - Fetched results controller
-
-    var fetchedResultsController: NSFetchedResultsController {
-        if _fetchedResultsController != nil {
-            return _fetchedResultsController!
-        }
-        
-        let fetchRequest = NSFetchRequest()
-        // Edit the entity name as appropriate.
-        let entity = NSEntityDescription.entityForName("Event", inManagedObjectContext: self.managedObjectContext!)
-        fetchRequest.entity = entity
-        
-        // Set the batch size to a suitable number.
-        fetchRequest.fetchBatchSize = 20
-        
-        // Edit the sort key as appropriate.
-        let sortDescriptor = NSSortDescriptor(key: "timeStamp", ascending: false)
-        
-        fetchRequest.sortDescriptors = [sortDescriptor]
-        
-        // Edit the section name key path and cache name if appropriate.
-        // nil for section name key path means "no sections".
-        let aFetchedResultsController = NSFetchedResultsController(fetchRequest: fetchRequest, managedObjectContext: self.managedObjectContext!, sectionNameKeyPath: nil, cacheName: "Master")
-        aFetchedResultsController.delegate = self
-        _fetchedResultsController = aFetchedResultsController
-        
-        do {
-            try _fetchedResultsController!.performFetch()
-        } catch {
-             // Replace this implementation with code to handle the error appropriately.
-             // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development. 
-             //print("Unresolved error \(error), \(error.userInfo)")
-             abort()
-        }
-        
-        return _fetchedResultsController!
-    }    
-    var _fetchedResultsController: NSFetchedResultsController? = nil
 
     func controllerWillChangeContent(controller: NSFetchedResultsController) {
         self.tableView.beginUpdates()
@@ -186,15 +137,6 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
     func controllerDidChangeContent(controller: NSFetchedResultsController) {
         self.tableView.endUpdates()
     }
-
-    /*
-     // Implementing the above methods to update the table view in response to individual changes may have performance implications if a large number of changes are made simultaneously. If this proves to be an issue, you can instead just implement controllerDidChangeContent: which notifies the delegate that all section and object changes have been processed.
-     
-     func controllerDidChangeContent(controller: NSFetchedResultsController) {
-         // In the simplest, most efficient, case, reload the table view.
-         self.tableView.reloadData()
-     }
-     */
 
 }
 
